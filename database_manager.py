@@ -4,21 +4,30 @@ from datetime import datetime, timedelta
 
 class DatabaseManager:
     def __init__(self):
-        self.db = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="paganini019",
-            database="face_recognition_db",
-            port=3308
-        )
-        self.cursor = self.db.cursor()
-
+        try:
+            self.db = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="paganini019",
+                database="face_recognition_db",
+                port=3308
+            )
+            self.cursor = self.db.cursor()
+        except mysql.connector.Error as err:
+            print(f"Error: {err}")
+            print(f"Error Code: {err.errno}")
+            print(f"SQLSTATE: {err.sqlstate}")
+            raise
+    
     def load_known_faces(self):
         known_face_encodings = []
         known_face_names = []
         known_face_ids = []
         self.cursor.execute("SELECT id, name, face_encoding FROM users")
         for (id, name, face_encoding) in self.cursor:
+            if len(face_encoding) != 1024:
+                print(f"Error: Face encoding for user {name} has incorrect length ({len(face_encoding)} bytes).")
+                continue
             known_face_ids.append(id)
             known_face_names.append(name)
             known_face_encodings.append(np.frombuffer(face_encoding, dtype=np.float64))
@@ -46,7 +55,7 @@ class DatabaseManager:
         last_log_time = self.get_last_log_time(user_id, schedule_id)
         
         print(f"Last log time: {last_log_time}")
-
+        #/start auto in 15 mins/
         if last_log_time and (current_time - last_log_time) < timedelta(minutes=30):
             print("Too soon to log again")
             return "Too soon to log again"
@@ -100,7 +109,7 @@ class DatabaseManager:
         if row:
             columns = [column[0] for column in self.cursor.description]
             result = dict(zip(columns, row))
-            # Convert start_time and end_time to timedelta if they're stored as strings
+            # Convert start_time and end_time to timedelta
             if isinstance(result['start_time'], str):
                 hours, minutes, seconds = map(int, result['start_time'].split(':'))
                 result['start_time'] = timedelta(hours=hours, minutes=minutes, seconds=seconds)
